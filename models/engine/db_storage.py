@@ -1,99 +1,96 @@
 #!/usr/bin/python3
-"""This module defines a class to manage file storage for hbnb clone"""
+"""This is the file storage class for AirBnB"""
+
+from models.base_model import Base
 from models.user import User
-from models.place import Place
 from models.state import State
 from models.city import City
 from models.amenity import Amenity
+from models.place import Place
 from models.review import Review
-from models.base_model import Base
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, scoped_session
-from os import getenv
+
+from sqlalchemy import (create_engine)
+from sqlalchemy.orm import scoped_session
+from sqlalchemy.orm import sessionmaker
+
+from os import environ
 
 
 class DBStorage:
-    """Class Docs"""
-
+    """ Storage for database with SQL Alchemy and MySQL """
     __engine = None
     __session = None
 
     def __init__(self):
-        """Function Docs"""
-        hb_user = getenv("HBNB_MYSQL_USER")
-        hb_pwd = getenv("HBNB_MYSQL_PWD")
-        hb_host = getenv("HBNB_MYSQL_HOST")
-        hb_db = getenv("HBNB_MYSQL_DB")
-        hb_env = getenv("HBNB_ENV")
+        """ Constructor """
 
-        self.__engine = create_engine(
-            f"mysql+mysqldb://{hb_user}:{hb_pwd}@{hb_host}/{hb_db}",
-            pool_pre_ping=True,
-        )
+        sqlUser = environ.get('HBNB_MYSQL_USER')
+        sqlPwd = environ.get('HBNB_MYSQL_PWD')
+        sqlHost = environ.get('HBNB_MYSQL_HOST')
+        sqlDb = environ.get('HBNB_MYSQL_DB')
+        sqlEnv = environ.get('HBNB_ENV')
 
-        if hb_env == "test":
-            Base.metadata.drop_all(self.__engine)
+        self.__engine = create_engine('mysql+mysqldb://{}:{}@{}/{}'.
+                                      format(sqlUser, sqlPwd, sqlHost, sqlDb),
+                                      pool_pre_ping=True)
 
-    def reload(self):
-        """ reload method """
-        Base.metadata.create_all(self.__engine)
-        Session = scoped_session(
-            sessionmaker(bind=self.__engine, expire_on_commit=False)
-        )
-        self.__session = Session()
+        if sqlEnv == "test":
+            Base.metadata.drop_all(bind=self.__engine)
 
-    def all(self, cls=None, id=None):
+    def all(self, cls=None):
         """
-        Query all classes or specific one by ID
+        Query on the current database session (self.__session)
+        all objects depending of the class name (argument cls)
         """
-        allClasses = [User, Place, State, City, Amenity, Review]
-        result = {}
 
-        if cls is not None:
-            if id is not None:
-                obj = self.__session.query(cls).get(id)
-                if obj is not None:
-                    ClassName = obj.__class__.__name__
-                    keyName = ClassName + "." + str(obj.id)
-                    result[keyName] = obj
-            else:
-                for obj in self.__session.query(cls).all():
-                    ClassName = obj.__class__.__name__
-                    keyName = ClassName + "." + str(obj.id)
-                    result[keyName] = obj
+        session = self.__session
+        dic = {}
+        if not cls:
+            tables = [User, State, City, Amenity, Place, Review]
+
         else:
-            for clss in allClasses:
-                if id is not None:
-                    obj = self.__session.query(clss).get(id)
-                    if obj is not None:
-                        ClassName = obj.__class__.__name__
-                        keyName = ClassName + "." + str(obj.id)
-                        result[keyName] = obj
-                else:
-                    for obj in self.__session.query(clss).all():
-                        ClassName = obj.__class__.__name__
-                        keyName = ClassName + "." + str(obj.id)
-                        result[keyName] = obj
-        return result
+            if type(cls) == str:
+                cls = eval(csl)
 
-    def search(self, cls, id):
-        """ def doc """
-        data = self.all(cls)
+            tables = [cls]
+
+        for t in tables:
+            query = session.query(t).all()
+
+            for rows in query:
+                key = "{}.{}".format(type(rows).__name__, rows.id)
+                dic[key] = rows
+
+        return dic
 
     def new(self, obj):
-        """add new obj"""
+        """ add the object to the current database session """
         if obj:
             self.__session.add(obj)
 
     def save(self):
-        """commit all changes"""
+        """ commit all changes of the current database session """
         self.__session.commit()
 
     def delete(self, obj=None):
-        """delete from the current database session"""
+        """ delete from module import symbol
+        the current database session obj if not None """
         if obj:
             self.__session.delete(obj)
 
+    def reload(self):
+        """
+        creates all tables in the database
+        creates the current database session
+        """
+        Base.metadata.create_all(self.__engine)
+        session_factory = sessionmaker(bind=self.__engine,
+                                       expire_on_commit=False)
+        Session = scoped_session(session_factory)
+        self.__session = Session()
+
     def close(self):
-        """doc meth"""
+        """
+        Closes Session
+        """
         self.__session.close()
